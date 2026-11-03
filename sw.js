@@ -1,6 +1,6 @@
 // Change ce numéro à chaque mise à jour pour forcer le rafraîchissement du cache
 const PREFIX = "orgau-";
-const VERSION = PREFIX + "maj1";
+const VERSION = PREFIX + "maj2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-1024.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {

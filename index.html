@@ -1027,6 +1027,31 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
 .ctx-item.warn-item { color: var(--late); font-weight: 700; }
 
 #openMore { font-size: 20px; font-weight: 800; letter-spacing: 1px; padding-left: 16px; padding-right: 16px; }
+
+/* Statistiques */
+.seg { grid-template-columns: repeat(6, 1fr); }
+html.m .seg button { font-size: 12.5px; }
+.st-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.st-head h3 { margin: 0; }
+.st-help { font: inherit; font-size: 15px; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; flex: none; }
+.st-help:hover { color: var(--ink); border-color: var(--ink); }
+.st-kpi .st-sub { font-size: 12px; color: var(--muted); }
+.st-chart .m.cur .bars i { opacity: .55; }
+.st-table-wrap { overflow-x: auto; margin: 0 -4px; }
+.st-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; min-width: 420px; }
+.st-table th { text-align: right; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 6px 8px; border-bottom: 1px solid var(--line); }
+.st-table th:first-child, .st-table td.mo { text-align: left; }
+.st-table td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.st-table td.mo { font-weight: 700; position: sticky; left: 0; background: var(--sheet); }
+.st-table td.muted { color: var(--muted); }
+.st-tips { display: flex; flex-direction: column; gap: 8px; }
+.st-tip { display: grid; grid-template-columns: 30px 1fr; gap: 8px; background: var(--paper); border-radius: 12px; padding: 12px; }
+.st-tip.ai { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c-violet) 50%, transparent); }
+.st-tip-ic { font-size: 18px; line-height: 1.3; text-align: center; }
+.st-tip b { display: block; font-size: 14.5px; margin-bottom: 3px; }
+.st-tip p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.st-ai { display: flex; flex-direction: column; gap: 8px; }
+.st-ai-btn { width: 100%; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -1216,6 +1241,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
       <button data-cv="clients">Clients</button>
       <button data-cv="credits">Crédits</button>
       <button data-cv="fixes">Fixes</button>
+      <button data-cv="stats">Stats</button>
     </div>
     <div class="filters" role="group" aria-label="Filtrer par axe">
       <span class="lbl">Axe</span>
@@ -3662,7 +3688,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
   let cpPeriod = { kind: "month", from: "", to: "" };
   try {
     const u = JSON.parse(localStorage.getItem(CPUIKEY)) || {};
-    if (["apercu", "mouv", "clients", "credits", "fixes"].includes(u.view)) cpView = u.view;
+    if (["apercu", "mouv", "clients", "credits", "fixes", "stats"].includes(u.view)) cpView = u.view;
     if (u.period) cpPeriod = Object.assign(cpPeriod, u.period);
     if (u.fix) { cpFixType = u.fix.type || "all"; cpFixStatus = u.fix.status || "all"; cpFixSort = u.fix.sort || "new"; }
   } catch (e) {}
@@ -3788,9 +3814,9 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     box.innerHTML = "";
     const add = document.getElementById("cpAdd");
     if (add) add.textContent = ADD_LABELS[cpView];
-    if (cpView === "apercu") cpSel = null;
+    if (cpView === "apercu" || cpView === "stats") cpSel = null;
     else cpTools(box);
-    ({ apercu: cpApercu, mouv: cpMouv, clients: cpClients, credits: cpCredits, fixes: cpFixes })[cpView](box);
+    ({ apercu: cpApercu, mouv: cpMouv, clients: cpClients, credits: cpCredits, fixes: cpFixes, stats: cpStats })[cpView](box);
     box.classList.toggle("sel-on", !!cpSel);
     document.documentElement.classList.toggle("cp-selecting", !!cpSel);
     if (cpSel) {
@@ -4020,6 +4046,269 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
       save();
     }, null, "Ajouter");
     setTimeout(() => gT.focus(), 50);
+  }
+
+  /* Statistiques & conseils */
+  let cpStatRange = "6";
+  let cpAiAdvice = null;
+  const STAT_HELP = {
+    avg: ["Revenu moyen par mois", "La moyenne de tes revenus mensuels sur la période choisie. Les revenus d’un mois = le Chiffre (tes entrées encodées dans « Mouv. ») + tes rentrées fixes de ce mois. Le mois en cours n’est pas compté dans la moyenne, car il n’est pas terminé."],
+    save: ["Taux d’épargne", "La part de tes revenus qu’il te reste une fois toutes tes dépenses payées : Résultat ÷ Revenus, en moyenne sur les mois terminés. Par exemple, 20 % signifie que sur 100 € gagnés, il t’en reste 20. Les impôts et cotisations ne sont déduits que si tu les as encodés comme sorties ou dépenses fixes."],
+    trend: ["Évolution", "Compare ton dernier mois terminé à la moyenne des mois précédents sur la période. Un chiffre positif veut dire que ton dernier mois a été meilleur que d’habitude."],
+    best: ["Meilleur et moins bon mois", "Le mois terminé où ton Résultat (ce qu’il te reste) a été le plus élevé, et celui où il a été le plus bas, sur la période choisie."],
+    fixed: ["Poids des dépenses fixes", "La part de tes revenus mangée chaque mois par tes dépenses fixes (loyer, abonnements, assurances…). Plus ce pourcentage est bas, plus tu as de marge de manœuvre."],
+    chart: ["Revenus et dépenses par mois", "Pour chaque mois, la barre verte montre tes revenus (Chiffre + rentrées fixes) et la barre rouge tes dépenses (sorties + dépenses fixes). L’écart entre les deux, c’est ce qu’il te reste ce mois-là. Le mois en cours est marqué d’un point : il n’est pas terminé."],
+    table: ["Tableau mensuel", "Le détail mois par mois. Revenus = Chiffre + rentrées fixes. Dépenses = sorties + dépenses fixes. Résultat = Revenus − Dépenses. Évolution = variation du Résultat par rapport au mois précédent."],
+    top: ["Qui te rapporte le plus", "Les clients et les axes qui ont généré le plus de revenus sur la période, avec leur part du total. Ça t’aide à voir d’où vient ton argent, et si tu dépends trop d’une seule source."],
+    tips: ["Conseils personnalisés", "Des pistes calculées à partir de tes propres chiffres : épargne, dépenses fixes, régularité des revenus, dépendance à un client, argent à récupérer… Ce sont des repères généraux pour t’aider à réfléchir, pas des conseils financiers professionnels. Pour les impôts, la TVA ou les cotisations, ton comptable reste la référence."]
+  };
+  function helpBtn(key) {
+    const b = el("button", "st-help", "ⓘ"); b.type = "button";
+    b.setAttribute("aria-label", "Explication : " + STAT_HELP[key][0]);
+    b.addEventListener("click", e => { e.stopPropagation(); openCpDlg(STAT_HELP[key][0], "Comment lire cette statistique", body => body.appendChild(el("p", "cp-explain", STAT_HELP[key][1])), null, null); });
+    return b;
+  }
+  function secHead(title, key) { const h = el("div", "st-head"); h.append(el("h3", "", title), helpBtn(key)); return h; }
+  function statMonths() {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    let start;
+    if (cpStatRange === "year") start = new Date(now.getFullYear(), 0, 1);
+    else start = new Date(now.getFullYear(), now.getMonth() - (Number(cpStatRange) - 1), 1);
+    const months = [];
+    const cur = new Date(start);
+    while (cur <= now) {
+      const a = new Date(cur), b = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
+      const from = localDay(a.getTime()), to = localDay(b.getTime());
+      const ents = cp.entries.filter(e => cpMatch(e.d) && e.date >= from && e.date <= to);
+      const fx = cp.fixes.filter(f => f.active !== false && cpMatch(f.d));
+      const fin = fx.filter(f => f.kind === "in").reduce((s, f) => s + fixAmountIn(f, a, b, 1), 0);
+      const fout = fx.filter(f => f.kind !== "in").reduce((s, f) => s + fixAmountIn(f, a, b, 1), 0);
+      const chiffre = sumType(ents, "in"), sorties = sumType(ents, "out");
+      const rev = chiffre + fin, dep = sorties + fout;
+      months.push({ a, b, from, to, ents, chiffre, sorties, fin, fout, rev, dep, res: rev - dep, current: b >= now });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    return months;
+  }
+  function pct(x) { return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(Math.round(x)) + " %"; }
+  function statData() {
+    const months = statMonths();
+    const done = months.filter(m => !m.current);
+    const avg = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+    const avgRev = avg(done.map(m => m.rev));
+    const avgRes = avg(done.map(m => m.res));
+    const saveRate = avgRev > 0 ? avgRes / avgRev * 100 : null;
+    const avgFix = avg(done.map(m => m.fout));
+    const fixShare = avgRev > 0 ? avgFix / avgRev * 100 : null;
+    let trend = null;
+    if (done.length >= 2) {
+      const last = done[done.length - 1], prev = done.slice(0, -1);
+      const base = avg(prev.map(m => m.res));
+      trend = base !== 0 ? (last.res - base) / Math.abs(base) * 100 : null;
+    }
+    const best = done.length ? done.reduce((x, y) => y.res > x.res ? y : x) : null;
+    const worst = done.length ? done.reduce((x, y) => y.res < x.res ? y : x) : null;
+    const sd = Math.sqrt(avg(done.map(m => Math.pow(m.rev - avgRev, 2))));
+    const volatility = avgRev > 0 ? sd / avgRev * 100 : null;
+    const allEnts = months.flatMap(m => m.ents);
+    const totalIn = sumType(allEnts, "in");
+    const byClient = {};
+    allEnts.filter(e => e.type === "in" && e.clientId && clientName(e.clientId)).forEach(e => { byClient[e.clientId] = (byClient[e.clientId] || 0) + e.amount; });
+    const clients = Object.keys(byClient).map(id => ({ name: clientName(id), v: byClient[id] })).sort((x, y) => y.v - x.v);
+    const byAxis = {};
+    allEnts.filter(e => e.type === "in").forEach(e => { const k = e.d && catById(e.d) ? e.d : ""; byAxis[k] = (byAxis[k] || 0) + e.amount; });
+    const axes = Object.keys(byAxis).map(k => ({ id: k, name: k ? catName(k) : "Sans axe", v: byAxis[k] })).sort((x, y) => y.v - x.v);
+    const todayKey = localDay(Date.now());
+    const owed = cp.credits.filter(c => cpMatch(c.d) && creditLeft(c) > 0);
+    const late = owed.filter(c => c.due && c.due < todayKey);
+    const topFix = cp.fixes.filter(f => f.active !== false && f.kind !== "in" && cpMatch(f.d)).sort((x, y) => fixMonthly(y) - fixMonthly(x)).slice(0, 3);
+    const negMonths = done.filter(m => m.res < 0).length;
+    return { months, done, avgRev, avgRes, saveRate, avgFix, fixShare, trend, best, worst, volatility, totalIn, clients, axes, owed, late, topFix, negMonths };
+  }
+  function ruleAdvice(S) {
+    const out = [];
+    if (S.done.length < 2) {
+      out.push(["🌱", "Encore un peu de patience", "Il faut au moins deux mois terminés avec des mouvements pour te donner des conseils fiables. Continue à encoder tes entrées, sorties et éléments fixes."]);
+      return out;
+    }
+    if (S.saveRate !== null) {
+      if (S.saveRate < 0) out.push(["🚨", "Tu dépenses plus que tu ne gagnes", "En moyenne, tes dépenses dépassent tes revenus de " + eur(Math.round(-S.avgRes)) + " par mois. Commence par repérer les dépenses que tu peux réduire ou reporter, en priorité parmi tes dépenses fixes."]);
+      else if (S.saveRate < 10) out.push(["⚠️", "Ta marge est faible", "Il te reste environ " + Math.round(S.saveRate) + " % de tes revenus chaque mois. Viser au moins 10 à 20 % te donnerait plus de sécurité : une petite économie régulière sur tes dépenses fixes peut suffire."]);
+      else if (S.saveRate >= 30) out.push(["👏", "Belle capacité d’épargne", "Il te reste environ " + Math.round(S.saveRate) + " % de tes revenus chaque mois. Pense à mettre cet argent de côté de façon régulière, par exemple sur un compte séparé, pour qu’il ne se dilue pas."]);
+      else out.push(["✅", "Ton budget est équilibré", "Il te reste environ " + Math.round(S.saveRate) + " % de tes revenus chaque mois. C’est une bonne base : garde le cap et essaie de mettre ce montant de côté dès le début du mois."]);
+    }
+    if (S.fixShare !== null && S.fixShare > 50) {
+      const list = S.topFix.map(f => f.label + " (" + eur(fixMonthly(f)) + "/mois)").join(", ");
+      out.push(["🔁", "Tes dépenses fixes pèsent lourd", "Elles représentent environ " + Math.round(S.fixShare) + " % de tes revenus. Tes plus grosses : " + list + ". Vérifie s’il y a des abonnements à résilier ou des contrats à renégocier."]);
+    }
+    if (S.volatility !== null && S.volatility > 35) {
+      out.push(["📉", "Tes revenus sont irréguliers", "Ils varient beaucoup d’un mois à l’autre. Garder une réserve d’environ trois mois de dépenses fixes (" + eur(Math.round(S.avgFix * 3)) + ") t’aiderait à passer les mois creux sereinement."]);
+    }
+    if (S.trend !== null && S.trend <= -25) out.push(["↘️", "Ton dernier mois est en baisse", "Ton Résultat du dernier mois est " + pct(S.trend) + " par rapport à ta moyenne. Regarde dans « Mouv. » ce qui a changé : moins d’entrées, ou une grosse dépense ponctuelle ?"]);
+    if (S.trend !== null && S.trend >= 25) out.push(["↗️", "Ton dernier mois est en hausse", "Ton Résultat du dernier mois est " + pct(S.trend) + " par rapport à ta moyenne. C’est le bon moment pour mettre un peu plus de côté."]);
+    if (S.clients.length && S.totalIn > 0) {
+      const share = S.clients[0].v / S.totalIn * 100;
+      if (share >= 50) out.push(["🎯", "Tu dépends beaucoup d’un client", S.clients[0].name + " représente environ " + Math.round(share) + " % de tes entrées. Si ce client s’arrêtait, l’impact serait fort : diversifier un peu tes sources de revenus te protégerait."]);
+    }
+    if (S.late.length) {
+      const tot = S.late.reduce((s, c) => s + creditLeft(c), 0);
+      out.push(["⏰", "De l’argent en retard t’attend", S.late.length + " crédit" + (S.late.length > 1 ? "s ont dépassé leur" : " a dépassé son") + " échéance, pour un total de " + eur(tot) + ". Une petite relance aux clients concernés pourrait rapidement améliorer ta trésorerie."]);
+    } else if (S.owed.length) {
+      const tot = S.owed.reduce((s, c) => s + creditLeft(c), 0);
+      out.push(["💬", "Pense à tes crédits en cours", "Tes clients te doivent encore " + eur(tot) + " au total. Fixer une échéance à chaque crédit t’aide à suivre les retards."]);
+    }
+    if (S.negMonths >= 2) out.push(["🧮", "Plusieurs mois dans le rouge", S.negMonths + " mois terminés sur " + S.done.length + " ont un Résultat négatif. Prévoir à l’avance les grosses dépenses (assurances annuelles, matériel…) en les encodant comme dépenses fixes t’aide à les lisser."]);
+    out.push(["🧾", "N’oublie pas les impôts et cotisations", "Si tu es indépendant, une partie de ton Résultat servira à payer la TVA, tes cotisations sociales et tes impôts. Encode-les comme sorties ou dépenses fixes pour voir ce qu’il te reste vraiment, et vérifie les montants avec ton comptable."]);
+    return out;
+  }
+  function aiAdvicePrompt(S) {
+    const months = S.done.map(m => ({ mois: fmtMonthYear.format(m.a), revenus: Math.round(m.rev) / 100, depenses: Math.round(m.dep) / 100, depenses_fixes: Math.round(m.fout) / 100, resultat: Math.round(m.res) / 100 }));
+    const data = {
+      mois_termines: months,
+      revenu_moyen: Math.round(S.avgRev) / 100,
+      taux_epargne_pct: S.saveRate === null ? null : Math.round(S.saveRate),
+      part_depenses_fixes_pct: S.fixShare === null ? null : Math.round(S.fixShare),
+      volatilite_revenus_pct: S.volatility === null ? null : Math.round(S.volatility),
+      plus_grosses_depenses_fixes: S.topFix.map(f => ({ libelle: f.label, par_mois: fixMonthly(f) / 100 })),
+      part_premier_client_pct: S.clients.length && S.totalIn ? Math.round(S.clients[0].v / S.totalIn * 100) : null,
+      axes: S.axes.map(a => ({ axe: a.name, entrees: a.v / 100 })),
+      credits_a_recevoir: S.owed.reduce((s, c) => s + creditLeft(c), 0) / 100,
+      credits_en_retard: S.late.reduce((s, c) => s + creditLeft(c), 0) / 100
+    };
+    return [
+      "Tu es un assistant bienveillant qui aide une personne (souvent indépendante) à mieux gérer son argent, à partir de ses statistiques personnelles.",
+      "Donne 3 à 5 conseils concrets et personnalisés, en français, en tutoyant, basés uniquement sur les chiffres fournis. Cite les chiffres utiles.",
+      "Pas de conseil d’investissement ni de produit financier précis. Pour la fiscalité, renvoie vers un comptable. Reste encourageant et pratique.",
+      "Réponds UNIQUEMENT avec un JSON valide, sans texte autour : {\"conseils\":[{\"titre\":\"...\",\"texte\":\"...\"}]}",
+      "Les montants sont en euros.",
+      "",
+      "Données :",
+      JSON.stringify(data)
+    ].join("\n");
+  }
+  async function runAiAdvice(S, box) {
+    box.innerHTML = ""; box.appendChild(el("p", "cp-explain ai-wait", "Analyse de tes chiffres en cours…"));
+    const prompt = aiAdvicePrompt(S);
+    let list = null, err = "";
+    const sample = await getSample();
+    if (sample) { try { const v = await sample.json(prompt, { modelTier: "quick" }); list = v && v.conseils; } catch (e) { err = "Claude n’a pas pu répondre pour le moment."; } }
+    if (!list && aiKey) {
+      try {
+        const r = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": aiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+          body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 1500, messages: [{ role: "user", content: prompt }] })
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const data = await r.json();
+        list = parseJsonLoose((data.content || []).map(c => c.type === "text" ? c.text : "").join("")).conseils;
+      } catch (e) { err = "La clé API n’a pas fonctionné (" + (e.message || "erreur") + ")."; }
+    }
+    if (!list && !sample && !aiKey) err = "L’analyse par l’IA demande une clé API dans Plus → Assistant IA. Les conseils ci-dessus restent disponibles sans IA.";
+    cpAiAdvice = Array.isArray(list) ? list.filter(x => x && x.texte).map(x => [String(x.titre || "Conseil"), String(x.texte)]) : null;
+    box.innerHTML = "";
+    if (cpAiAdvice && cpAiAdvice.length) {
+      cpAiAdvice.forEach(([t, x]) => { const c = el("div", "st-tip ai"); c.append(el("span", "st-tip-ic", "✨"), (() => { const d = el("div"); d.append(el("b", "", t), el("p", "", x)); return d; })()); box.appendChild(c); });
+    } else box.appendChild(el("p", "cp-hint", err || "Aucun conseil n’a pu être généré."));
+  }
+  function cpStats(box) {
+    box.appendChild(chipRow([["6", "6 mois"], ["12", "12 mois"], ["year", "Cette année"]], cpStatRange, k => { cpStatRange = k; cpAiAdvice = null; cpRender(); }));
+    const S = statData();
+    const kpi = (key, label, value, cls, sub) => {
+      const c = el("button", "cp-card click st-kpi"); c.type = "button";
+      c.append(el("span", "k", label), el("span", "v" + (cls ? " " + cls : ""), value));
+      if (sub) c.appendChild(el("span", "st-sub", sub));
+      c.addEventListener("click", () => openCpDlg(STAT_HELP[key][0], "Comment lire cette statistique", body => body.appendChild(el("p", "cp-explain", STAT_HELP[key][1])), null, null));
+      return c;
+    };
+    const cards = el("div", "cp-cards");
+    cards.append(
+      kpi("avg", "Revenu moyen / mois", eur(Math.round(S.avgRev)), "pos", "Il te reste en moyenne " + sEur(Math.round(S.avgRes))),
+      kpi("save", "Taux d’épargne", S.saveRate === null ? "—" : Math.round(S.saveRate) + " %", S.saveRate === null ? "" : S.saveRate >= 10 ? "pos" : "neg"),
+      kpi("trend", "Évolution du dernier mois", S.trend === null ? "—" : pct(S.trend), S.trend === null ? "" : S.trend >= 0 ? "pos" : "neg"),
+      kpi("fixed", "Poids des fixes", S.fixShare === null ? "—" : Math.round(S.fixShare) + " %", S.fixShare !== null && S.fixShare > 50 ? "neg" : ""),
+      kpi("best", "Meilleur mois", S.best ? cap(fmtMonthYear.format(S.best.a)) : "—", "", S.best ? sEur(S.best.res) + (S.worst && S.worst !== S.best ? " · plus faible : " + fmtMonthShort.format(S.worst.a).replace(".", "") + " " + sEur(S.worst.res) : "") : "")
+    );
+    box.appendChild(cards);
+
+    const ch = el("section", "cp-sec");
+    ch.appendChild(secHead("Revenus et dépenses par mois", "chart"));
+    const max = Math.max(1, ...S.months.map(m => Math.max(m.rev, m.dep)));
+    const chart = el("div", "cp-chart st-chart");
+    S.months.forEach(m => {
+      const col = el("div", "m" + (m.current ? " cur" : ""));
+      const bars = el("div", "bars");
+      const i1 = el("i", "in"); i1.style.height = Math.round(m.rev / max * 100) + "%"; i1.title = "Revenus : " + eur(m.rev);
+      const i2 = el("i", "out"); i2.style.height = Math.round(m.dep / max * 100) + "%"; i2.title = "Dépenses : " + eur(m.dep);
+      bars.append(i1, i2);
+      col.append(bars, el("span", "ml", fmtMonthShort.format(m.a).replace(".", "") + (m.current ? " •" : "")));
+      chart.appendChild(col);
+    });
+    ch.appendChild(chart);
+    const lg = el("div", "cp-legend");
+    lg.innerHTML = "<span><i style=\"background:var(--c-green)\"></i>Revenus</span><span><i style=\"background:var(--late)\"></i>Dépenses</span><span>• mois en cours</span>";
+    ch.appendChild(lg);
+    box.appendChild(ch);
+
+    const tb = el("section", "cp-sec");
+    tb.appendChild(secHead("Tableau mensuel", "table"));
+    const wrap = el("div", "st-table-wrap");
+    const t = document.createElement("table"); t.className = "st-table";
+    t.innerHTML = "<thead><tr><th>Mois</th><th>Revenus</th><th>Dépenses</th><th>Résultat</th><th>Évol.</th></tr></thead>";
+    const tbody = document.createElement("tbody");
+    S.months.slice().reverse().forEach((m, i, arr) => {
+      const prev = arr[i + 1];
+      const ev = prev && prev.res !== 0 ? (m.res - prev.res) / Math.abs(prev.res) * 100 : null;
+      const tr = document.createElement("tr");
+      const td = (txt, cls) => { const c = document.createElement("td"); c.textContent = txt; if (cls) c.className = cls; tr.appendChild(c); };
+      td(cap(fmtMonthShort.format(m.a).replace(".", "")) + " " + String(m.a.getFullYear()).slice(2) + (m.current ? " •" : ""), "mo");
+      td(eur(m.rev), "pos"); td(eur(m.dep), m.dep ? "neg" : ""); td(sEur(m.res), m.res >= 0 ? "pos" : "neg");
+      td(ev === null ? "—" : pct(ev), ev === null ? "muted" : ev >= 0 ? "pos" : "neg");
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody); wrap.appendChild(t); tb.appendChild(wrap);
+    box.appendChild(tb);
+
+    if (S.clients.length || S.axes.length) {
+      const top = el("section", "cp-sec");
+      top.appendChild(secHead("Qui te rapporte le plus", "top"));
+      const addRows = (title, rows) => {
+        if (!rows.length) return;
+        top.appendChild(el("h4", "cp-h4", title));
+        rows.slice(0, 3).forEach(r => {
+          const share = S.totalIn ? Math.round(r.v / S.totalIn * 100) : 0;
+          const row = el("div", "cp-axis");
+          row.style.setProperty("--dc", r.id !== undefined ? axisColor(r.id) : "var(--c-green)");
+          row.append(el("span", "nm", r.name), el("span", "v pos", eur(r.v)));
+          const bar = el("div", "bar"); const i = el("i"); i.style.width = share + "%"; bar.appendChild(i);
+          row.append(bar, el("span", "sub", share + " % de tes entrées"));
+          top.appendChild(row);
+        });
+      };
+      addRows("Clients", S.clients);
+      addRows("Axes", S.axes);
+      box.appendChild(top);
+    }
+
+    const tips = el("section", "cp-sec st-tips");
+    tips.appendChild(secHead("💡 Conseils personnalisés", "tips"));
+    ruleAdvice(S).forEach(([ic, t1, x]) => {
+      const c = el("div", "st-tip");
+      const d = el("div"); d.append(el("b", "", t1), el("p", "", x));
+      c.append(el("span", "st-tip-ic", ic), d);
+      tips.appendChild(c);
+    });
+    const aiBox = el("div", "st-ai");
+    if (cpAiAdvice) cpAiAdvice.forEach(([t1, x]) => { const c = el("div", "st-tip ai"); const d = el("div"); d.append(el("b", "", t1), el("p", "", x)); c.append(el("span", "st-tip-ic", "✨"), d); aiBox.appendChild(c); });
+    tips.appendChild(aiBox);
+    if (S.done.length >= 2) {
+      const ai = el("button", "btn-sec st-ai-btn", cpAiAdvice ? "✨ Relancer l’analyse par l’IA" : "✨ Analyse approfondie par l’IA"); ai.type = "button";
+      ai.addEventListener("click", () => runAiAdvice(S, aiBox));
+      tips.appendChild(ai);
+      tips.appendChild(el("p", "cp-hint", "Seuls tes totaux mensuels et tes indicateurs sont envoyés à l’IA, jamais le détail de tes mouvements ni les noms de tes clients."));
+    }
+    tips.appendChild(el("p", "cp-hint", "Ces conseils sont des repères généraux, pas des conseils financiers professionnels."));
+    box.appendChild(tips);
   }
 
   /* Aperçu */
@@ -4621,7 +4910,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     }, null);
   }
   let cpSel = null;
-  const ADD_LABELS = { apercu: "+ Mouvement", mouv: "+ Mouvement", clients: "+ Nouveau client", credits: "+ Nouveau crédit", fixes: "+ Fixe" };
+  const ADD_LABELS = { apercu: "+ Mouvement", mouv: "+ Mouvement", clients: "+ Nouveau client", credits: "+ Nouveau crédit", fixes: "+ Fixe", stats: "+ Mouvement" };
   const SEL_WORDS = { mouv: ["mouvement", "mouvements"], clients: ["client", "clients"], credits: ["crédit", "crédits"], fixes: ["élément fixe", "éléments fixes"] };
   function cpTools(box) {
     const t = el("div", "cp-tools");
@@ -5455,7 +5744,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
 
   /* Donner son avis */
   const CONTACT_MAIL = "orga.app.contact@gmail.com";
-  const APP_VERSION = "MAJ 1";
+  const APP_VERSION = "MAJ 2";
   function feedbackForm() {
     let kind = "idee", gMsg, gName;
     const KINDS = [["idee", "💡 Idée"], ["bug", "🐞 Problème"], ["avis", "💬 Avis"]];
@@ -5494,6 +5783,19 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     const r = e.currentTarget.getBoundingClientRect();
     document.getElementById("tbMore").dispatchEvent(new MouseEvent("click", { clientX: r.right, clientY: r.bottom, bubbles: true }));
   });
+  /* Pas de remplissage automatique du navigateur (sauf adresse mail) */
+  function noAutofill(root) {
+    (root.querySelectorAll ? root.querySelectorAll("input:not([type=email]):not([type=checkbox]):not([type=file]), textarea") : []).forEach(i => {
+      if (!i.hasAttribute("autocomplete")) i.setAttribute("autocomplete", "off");
+    });
+  }
+  noAutofill(document);
+  new MutationObserver(list => list.forEach(m => m.addedNodes.forEach(n => {
+    if (n.nodeType !== 1) return;
+    if (n.matches && n.matches("input:not([type=email]):not([type=checkbox]):not([type=file]), textarea") && !n.hasAttribute("autocomplete")) n.setAttribute("autocomplete", "off");
+    noAutofill(n);
+  }))).observe(document.body, { childList: true, subtree: true });
+
   /* Tabs */
   function showTab(name) {
     tab = name;
