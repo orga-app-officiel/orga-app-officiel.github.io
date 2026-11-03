@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr" class="m">
+<html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,10 +11,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ORGA">
 <meta name="application-name" content="ORGA">
-<meta name="description" content="ORGA : tes tâches, ton temps et ton argent, au même endroit.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
+<script>
+(function () {
+  var big = window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)").matches;
+  if (!big) document.documentElement.classList.add("m");
+})();
+</script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1020,6 +1025,8 @@ html.bk-due #tbMore { position: relative; }
 html.bk-due #tbMore::after { content: ""; position: absolute; top: 7px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: var(--late); box-shadow: 0 0 0 2px var(--sheet); }
 html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
 .ctx-item.warn-item { color: var(--late); font-weight: 700; }
+
+#openMore { font-size: 20px; font-weight: 800; letter-spacing: 1px; padding-left: 16px; padding-right: 16px; }
 </style>
 </head>
 <body>
@@ -1029,10 +1036,12 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     <button class="tab" role="tab" data-tab="matrice" aria-selected="true">Matrice</button>
     <button class="tab" role="tab" data-tab="calendrier" aria-selected="false">Calendrier</button>
     <button class="tab" role="tab" data-tab="pomodoro" aria-selected="false">Pomodoro <span class="live" id="pLive"></span></button>
+    <button class="tab" role="tab" data-tab="compta" aria-selected="false">Compta</button>
   </nav>
   <div class="top-actions">
     <button class="btn-sec" id="openBackup">Sauvegarde</button>
     <button class="btn-sec" id="openCats">Catégories</button>
+    <button class="btn-sec" id="openMore" aria-label="Plus d’options" title="Guide, avis, assistant IA…">⋯</button>
   </div>
   </div>
 
@@ -1594,7 +1603,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     { id: "LOISIRS", name: "Loisirs", color: "violet", scopes: { matrice: false, calendrier: true, pomodoro: false, compta: true } }
   ];
   try {
-    const c = JSON.parse(localStorage.getItem(CATKEY));
+    const c = JSON.parse(localStorage.getItem(CATKEY) || localStorage.getItem("eisenhower-cats-v1"));
     if (Array.isArray(c)) cats = c.filter(x => x && x.id && x.name).map(x => ({ id: x.id, name: x.name, color: x.color, scopes: Object.assign({ matrice: false, calendrier: false, pomodoro: false }, x.scopes) }));
   } catch (e) {}
   function saveCats() { try { localStorage.setItem(CATKEY, JSON.stringify(cats)); } catch (e) {} }
@@ -5148,7 +5157,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     }
     openAdd();
   });
-  document.getElementById("tbMore").addEventListener("click", () => openSheet(0, 0, "Plus", [
+  document.getElementById("tbMore").addEventListener("click", e => openSheet(e && e.clientX ? e.clientX - 220 : 0, e && e.clientY ? e.clientY + 8 : 0, "Plus", [
     { label: "📖  Guide d’ORGA", fn: () => openGuide(false) },
     { label: "⚑  Toutes les deadlines", fn: () => document.getElementById("openList").click() },
     { label: "▤  Archives", fn: () => document.querySelector(".js-archive").click() },
@@ -5446,7 +5455,7 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
 
   /* Donner son avis */
   const CONTACT_MAIL = "orga.app.contact@gmail.com";
-  const APP_VERSION = "U · 2 novembre 2026";
+  const APP_VERSION = "MAJ 1";
   function feedbackForm() {
     let kind = "idee", gMsg, gName;
     const KINDS = [["idee", "💡 Idée"], ["bug", "🐞 Problème"], ["avis", "💬 Avis"]];
@@ -5481,6 +5490,10 @@ html.bk-due #openBackup { border-color: var(--late); color: var(--late); }
     }, null, "Envoyer");
   }
 
+  document.getElementById("openMore").addEventListener("click", e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    document.getElementById("tbMore").dispatchEvent(new MouseEvent("click", { clientX: r.right, clientY: r.bottom, bubbles: true }));
+  });
   /* Tabs */
   function showTab(name) {
     tab = name;
