@@ -3797,7 +3797,15 @@ html.m .seg button { font-size: 12.5px; }
     if (f.freq === "weekly") return "chaque " + fmtWdLong.format(s);
     return "prochaine le " + fmtShort.format(nextOcc(f));
   }
+  function monthsWhole(a, b) { return (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() + 1; }
   function fixAmountIn(f, a, b, mf) {
+    if (f.kind !== "in") {
+      const a2 = new Date(a.getFullYear(), a.getMonth(), 1), b2 = new Date(b.getFullYear(), b.getMonth() + 1, 0);
+      if (f.start) return f.amount * countOcc(f, a2, b2);
+      const mw = monthsWhole(a, b);
+      if ((f.freq || "monthly") === "monthly") return f.amount * mw;
+      return Math.round(fixMonthly(f) * mw);
+    }
     if (f.start) return f.amount * countOcc(f, a, b);
     if ((f.freq || "monthly") === "monthly") return Math.round(f.amount * mf);
     return Math.round(fixMonthly(f) * mf);
@@ -3904,7 +3912,7 @@ html.m .seg button { font-size: 12.5px; }
       }, null, null),
       fixOut: fromRes => openCpDlg("Dépenses fixes (estimation)", sub, body => {
         explain(body, ["Une estimation de tes dépenses fixes actives sur cette période (loyer, abonnements, assurances…).",
-          "Les éléments avec une date d’échéance comptent à chaque échéance qui tombe dans la période : un loyer le 5 du mois, une assurance annuelle en mars… Ceux sans date comptent pour chaque mois de la période (" + fmtMonths(mf) + ") ; les montants hebdomadaires, trimestriels ou annuels sans date sont alors répartis en équivalent mensuel. Les éléments en pause ne sont pas comptés."]);
+          "Dès qu’un mois est entamé, ses dépenses fixes sont comptées en entier : sur une période qui se termine le 7 du mois, le loyer de ce mois est déjà compté, car il est dû. Les éléments avec une date d’échéance comptent à chaque échéance de chaque mois touché par la période. Les montants hebdomadaires, trimestriels ou annuels sans date sont répartis en équivalent mensuel. Les éléments en pause ne sont pas comptés."]);
         fixList(body, fixes.filter(x => x.kind !== "in"), "out");
         total(body, "Total estimé", eur(fixEst), fixEst ? "neg" : "");
         if (fromRes) back(body);
@@ -5744,7 +5752,7 @@ html.m .seg button { font-size: 12.5px; }
 
   /* Donner son avis */
   const CONTACT_MAIL = "orga.app.contact@gmail.com";
-  const APP_VERSION = "MAJ 2";
+  const APP_VERSION = "MAJ 3";
   function feedbackForm() {
     let kind = "idee", gMsg, gName;
     const KINDS = [["idee", "💡 Idée"], ["bug", "🐞 Problème"], ["avis", "💬 Avis"]];
